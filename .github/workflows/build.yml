@@ -28,7 +28,7 @@ jobs:
           cl /nologo /EHsc /O2 ^
             /I nvapi ^
             main.cpp ^
-            /link /OUT:NvDisplaySetup.exe nvapi\x64\nvapi64.lib
+            /link /OUT:NvDisplaySetup.exe nvapi\amd64\nvapi64.lib
 
       - name: Upload helper
         uses: actions/upload-artifact@v4
