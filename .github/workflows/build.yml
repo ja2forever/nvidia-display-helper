@@ -8,6 +8,9 @@ jobs:
     runs-on: windows-2025
 
     steps:
+      - name: Checkout our files
+        uses: actions/checkout@v4
+
       - name: Download NVIDIA NVAPI
         uses: actions/checkout@v4
         with:
@@ -26,7 +29,6 @@ jobs:
             /I nvapi ^
             main.cpp ^
             /link /OUT:NvDisplaySetup.exe nvapi\x64\nvapi64.lib
-
 
       - name: Upload helper
         uses: actions/upload-artifact@v4
