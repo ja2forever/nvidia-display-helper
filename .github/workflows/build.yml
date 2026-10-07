@@ -1,1 +1,30 @@
-test2
+name: Build NVIDIA Helper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2025
+
+    steps:
+      - name: Download NVIDIA NVAPI
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA/nvapi
+          path: nvapi
+
+      - name: Build helper
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /EHsc /O2 ^
+            /I nvapi ^
+            main.cpp ^
+            /link /OUT:NvDisplaySetup.exe nvapi\x64\nvapi64.lib
+
+      - name: Upload helper
+        uses: actions/upload-artifact@v4
+        with:
+          name: NvDisplaySetup
+          path: NvDisplaySetup.exe
