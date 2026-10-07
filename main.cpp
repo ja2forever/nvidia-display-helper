@@ -232,7 +232,7 @@ int main()
          * physical transmission. The NVIDIA driver still
          * determines the actual link format.
          */
-        paths[i].sourceModeInfo[0].colorDepth = 32;
+        paths[i].sourceModeInfo[0].resolution.colorDepth = 32;
 
         /*
          * NVIDIA scaling:
