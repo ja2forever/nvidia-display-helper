@@ -5,79 +5,68 @@
 
 int main()
 {
-    DISPLAY_DEVICEW display = {};
-    display.cb = sizeof(display);
+    DISPLAY_DEVICEW dd = {};
+    dd.cb = sizeof(dd);
 
-    WCHAR primaryName[32] = {};
+    WCHAR deviceName[32] = {};
+    bool found = false;
 
-    // Find the Windows primary display.
-    bool foundDisplay = false;
-
-    for (DWORD i = 0; EnumDisplayDevicesW(NULL, i, &display, 0); ++i)
+    for (DWORD i = 0; EnumDisplayDevicesW(NULL, i, &dd, 0); ++i)
     {
-        if ((display.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) &&
-            (display.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE))
+        if ((dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) &&
+            (dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
         {
-            wcscpy_s(primaryName, display.DeviceName);
-            foundDisplay = true;
+            wcscpy_s(deviceName, dd.DeviceName);
+            found = true;
             break;
         }
 
-        ZeroMemory(&display, sizeof(display));
-        display.cb = sizeof(display);
+        ZeroMemory(&dd, sizeof(dd));
+        dd.cb = sizeof(dd);
     }
 
-    if (!foundDisplay)
+    if (!found)
     {
-        printf("ERROR: Could not find the primary display.\n");
+        printf("ERROR: Primary display not found.\n");
         return 1;
     }
 
-    printf("Primary display: %ls\n", primaryName);
-    printf("Searching for existing 3840x2160 @ 100 Hz mode...\n");
+    printf("Display: %ls\n", deviceName);
+    printf("Looking for existing 3840x2160 @ 100Hz...\n");
 
-    DEVMODEW mode = {};
-    mode.dmSize = sizeof(mode);
+    DEVMODEW dm = {};
+    dm.dmSize = sizeof(dm);
 
-    bool foundMode = false;
+    bool modeFound = false;
 
-    // Enumerate modes already supplied by Windows/display driver.
     for (DWORD i = 0;
-         EnumDisplaySettingsExW(primaryName, i, &mode, 0);
+         EnumDisplaySettingsExW(deviceName, i, &dm, 0);
          ++i)
     {
-        if (mode.dmPelsWidth == 3840 &&
-            mode.dmPelsHeight == 2160 &&
-            mode.dmDisplayFrequency == 100)
+        if (dm.dmPelsWidth == 3840 &&
+            dm.dmPelsHeight == 2160 &&
+            dm.dmDisplayFrequency == 100)
         {
-            foundMode = true;
+            modeFound = true;
             break;
         }
 
-        ZeroMemory(&mode, sizeof(mode));
-        mode.dmSize = sizeof(mode);
+        ZeroMemory(&dm, sizeof(dm));
+        dm.dmSize = sizeof(dm);
     }
 
-    if (!foundMode)
+    if (!modeFound)
     {
-        printf("ERROR: Existing 3840x2160 @ 100 Hz mode was not found.\n");
-        printf("No display configuration was changed.\n");
+        printf("ERROR: 3840x2160 @ 100Hz was not found.\n");
+        printf("Nothing was changed.\n");
         return 2;
     }
 
-    printf("Found existing mode:\n");
-    printf("  Resolution : %lu x %lu\n",
-           mode.dmPelsWidth,
-           mode.dmPelsHeight);
-    printf("  Refresh    : %lu Hz\n",
-           mode.dmDisplayFrequency);
-    printf("  BPP        : %lu\n",
-           mode.dmBitsPerPel);
+    printf("Found existing mode: 3840x2160 @ 100Hz\n");
 
-    // Apply the existing mode.
     LONG result = ChangeDisplaySettingsExW(
-        primaryName,
-        &mode,
+        deviceName,
+        &dm,
         NULL,
         CDS_UPDATEREGISTRY,
         NULL
@@ -85,15 +74,11 @@ int main()
 
     if (result != DISP_CHANGE_SUCCESSFUL)
     {
-        printf("ERROR: Failed to apply display mode.\n");
-        printf("Windows error code: %ld\n", result);
+        printf("ERROR: ChangeDisplaySettingsEx failed: %ld\n", result);
         return 3;
     }
 
-    printf("\nSUCCESS\n");
-    printf("3840x2160 @ 100 Hz is now active.\n");
-    printf("No custom display mode was created.\n");
+    printf("SUCCESS: 3840x2160 @ 100Hz applied.\n");
 
     return 0;
 }
-Compile exactly as you were compiling before:
