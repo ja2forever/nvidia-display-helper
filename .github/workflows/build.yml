@@ -15,13 +15,18 @@ jobs:
           path: nvapi
 
       - name: Build helper
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Compile helper
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           cl /nologo /EHsc /O2 ^
             /I nvapi ^
             main.cpp ^
             /link /OUT:NvDisplaySetup.exe nvapi\x64\nvapi64.lib
+
 
       - name: Upload helper
         uses: actions/upload-artifact@v4
