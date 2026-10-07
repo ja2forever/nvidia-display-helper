@@ -1,84 +1,89 @@
 #include <windows.h>
-#include <stdio.h>
 
-#pragma comment(lib, "user32.lib")
+#include <stdio.h> #include <stdlib.h> #include <string.h>
 
-int main()
-{
-    DISPLAY_DEVICEW dd = {};
-    dd.cb = sizeof(dd);
+#include "nvapi.h"
 
-    WCHAR deviceName[32] = {};
-    bool found = false;
+// ============================================================ // Error reporting // ============================================================
 
-    for (DWORD i = 0; EnumDisplayDevicesW(NULL, i, &dd, 0); ++i)
-    {
-        if ((dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) &&
-            (dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
-        {
-            wcscpy_s(deviceName, dd.DeviceName);
-            found = true;
-            break;
-        }
+static void PrintError( const char* where, NvAPIStatus status) { NvAPIShortString message;
 
-        ZeroMemory(&dd, sizeof(dd));
-        dd.cb = sizeof(dd);
-    }
+memset(message, 0, sizeof(message));
 
-    if (!found)
-    {
-        printf("ERROR: Primary display not found.\n");
-        return 1;
-    }
+if (NvAPIGetErrorMessage(status, message) == NVAPIOK) { printf( "ERROR: %s: %s (0x%X)\n", where, message, status); } else { printf( "ERROR: %s: NVAPI status 0x%X\n", where, status); } }
 
-    printf("Display: %ls\n", deviceName);
-    printf("Looking for existing 3840x2160 @ 100Hz...\n");
+// ============================================================ // Enable NVIDIA performance counters // // This corresponds to: // // NVIDIA Control Panel // -> Desktop // -> Enable Developer Settings // -> Allow every user to use performance counters // // We deliberately obtain the setting ID by name instead of // depending on NvApiDriverSettings.h. // ============================================================
 
-    DEVMODEW dm = {};
-    dm.dmSize = sizeof(dm);
+static NvAPI_Status EnablePerformanceCounters() { NvDRSSessionHandle session = NULL; NvDRSProfileHandle profile = NULL;
 
-    bool modeFound = false;
+NvAPI_Status status;
 
-    for (DWORD i = 0;
-         EnumDisplaySettingsExW(deviceName, i, &dm, 0);
-         ++i)
-    {
-        if (dm.dmPelsWidth == 3840 &&
-            dm.dmPelsHeight == 2160 &&
-            dm.dmDisplayFrequency == 100)
-        {
-            modeFound = true;
-            break;
-        }
+// Create DRS session. status = NvAPIDRSCreateSession(&session);
 
-        ZeroMemory(&dm, sizeof(dm));
-        dm.dmSize = sizeof(dm);
-    }
+if (status != NVAPI_OK) return status;
 
-    if (!modeFound)
-    {
-        printf("ERROR: 3840x2160 @ 100Hz was not found.\n");
-        printf("Nothing was changed.\n");
-        return 2;
-    }
+// Load the current NVIDIA driver settings. status = NvAPIDRSLoadSettings(session);
 
-    printf("Found existing mode: 3840x2160 @ 100Hz\n");
+if (status != NVAPIOK) { NvAPIDRS_DestroySession(session); return status; }
 
-    LONG result = ChangeDisplaySettingsExW(
-        deviceName,
-        &dm,
-        NULL,
-        CDS_UPDATEREGISTRY,
-        NULL
-    );
+// Get the global NVIDIA profile. status = NvAPIDRSGetCurrentGlobalProfile( session, &profile);
 
-    if (result != DISP_CHANGE_SUCCESSFUL)
-    {
-        printf("ERROR: ChangeDisplaySettingsEx failed: %ld\n", result);
-        return 3;
-    }
+if (status != NVAPIOK) { NvAPIDRS_DestroySession(session); return status; }
 
-    printf("SUCCESS: 3840x2160 @ 100Hz applied.\n");
+// Ask NVIDIA for the ID of: // // "Export Performance Counters" // NvU32 settingId = 0;
 
-    return 0;
-}
+status = NvAPIDRSGetSettingIdFromName( (NvAPI_UnicodeString)L"Export Performance Counters", &settingId);
+
+if (status != NVAPIOK) { NvAPIDRS_DestroySession(session); return status; }
+
+// Prepare the setting. NVDRS_SETTING setting;
+
+memset(&setting, 0, sizeof(setting));
+
+setting.version = NVDRSSETTINGVER; setting.settingId = settingId; setting.settingType = NVDRSDWORDTYPE;
+
+// NVIDIA defines: // 0 = OFF // 1 = ON setting.u32CurrentValue = 1;
+
+// Apply it to the global profile. status = NvAPIDRSSetSetting( session, profile, &setting);
+
+if (status != NVAPIOK) { NvAPIDRS_DestroySession(session); return status; }
+
+// Persist the setting. status = NvAPIDRSSaveSettings(session);
+
+NvAPIDRSDestroySession(session);
+
+return status; }
+
+// ============================================================ // Main // ============================================================
+
+int main() { printf("NVIDIA Display Helper\n"); printf("=====================\n\n");
+
+// -------------------------------------------------------- // Initialize NVAPI // --------------------------------------------------------
+
+NvAPIStatus status = NvAPIInitialize();
+
+if (status != NVAPIOK) { PrintError( "NvAPIInitialize", status);
+
+return 1; }
+
+// -------------------------------------------------------- // Enable performance counters // --------------------------------------------------------
+
+printf( "Enabling NVIDIA performance counters...\n");
+
+status = EnablePerformanceCounters();
+
+if (status != NVAPI_OK) { PrintError( "EnablePerformanceCounters", status);
+
+NvAPI_Unload();
+
+return 2; }
+
+printf( "[OK] Performance counters enabled.\n");
+
+// -------------------------------------------------------- // Done // --------------------------------------------------------
+
+NvAPI_Unload();
+
+printf("\nDone.\n");
+
+return 0; } :::
